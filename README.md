@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a Node.js application that implements an AI agent based on a basic version of the Ralph Wiggum loop. It uses Ollama to generate code segments or commands to build, modify, test, and run code for a given project task. The agent operates in a loop: generating segments, executing them as Node.js code (using child_process for shell or other languages), handling errors, and checking for project completion.
+This is a Node.js application that implements an AI agent based on a basic version of the Ralph Wiggum (as in Claude Code plugin implementation as of Jan 20th 2026) loop. It uses Ollama to generate code segments or commands to build, modify, test, and run code for a given project task. The agent operates in a loop: generating segments, executing them as Node.js code (using child_process for shell or other languages), handling errors, and checking for project completion.
 
 Key features:
 - Stateful progress tracking with logs.
