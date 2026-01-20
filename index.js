@@ -121,11 +121,11 @@ async function main() {
   
   const systemPromptGenerate = 'You are a code generator. Output only the raw next Node.js code segment without any codeblocks, markdown, formatting, or wrappers. For shell commands or other languages (like Python), use Node.js child_process to execute them directly without creating files or running code in shell. If the project is complete, output only "PROJECT_DONE". Do not include any other text, explanations, thoughts, speech, codeblocks, or markdown. Do not create anything that may make a feedback loop stuck, such as a server, launching GUI apps, or a while true loop without a proper breaking functionality.';
   const systemPromptCheck = 'You are a completion checker. Respond only with "yes" or "no" to whether the project is complete. No other text, explanations, thoughts, speech, codeblocks, or markdown.';
-  const projectStateSummarySystem = "You are a project progress summarization bot. You creat summaries for projects. Use plain text. Output ONLY the new summary, NOTHNG ELSE.";
+  const projectStateSummarySystem = "You are a project progress summarization bot. You create summaries for projects - showing what you've learned, the errors, and what needs to be done. Use plain text. Output ONLY the new summary, NOTHNG ELSE.";
 
   while (true) {
     const sliceLen = Math.round((Number(contextLength) / 6) / 2);
-    const summarizePrompt = `Current detailed history (last ${sliceLen} characters):\n${progressLog.slice(sliceLen * -1)}\n\nCurrent error logs (last ${sliceLen} characters):\n${errorLog.slice(sliceLen * -1)}\n\nCurrent Project State Summary:\n${projectStateSummary}\n\nUpdate and shorten the Project State Summary to be concise, factual, and under ${Math.round(Number(contextLength) / 6)} tokens. Focus on: current achievements, important files created, current status, any remaining major goals.\n\nReminder: Output ONLY the new summary, nothing else.`;
+    const summarizePrompt = `Current detailed history (last ${sliceLen} characters):\n${progressLog.slice(sliceLen * -1)}\n\nCurrent error logs (last ${sliceLen} characters):\n${errorLog.slice(sliceLen * -1)}\n\nCurrent Project State Summary:\n${projectStateSummary}\n\nUpdate and shorten the Project State Summary to be concise, factual, and under ${Math.round(Number(contextLength) / 6)} tokens. Focus on: current achievements, important files created, current status, any remaining major goals.\n\nReminder: Output ONLY the new summary, nothing else.\n\nReminder 2: You should mainly be showing what you've learned, the errors, and what needs to be done.`;
 
     const summaryResponse = await ollama.chat({
       model: model,
