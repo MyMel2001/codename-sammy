@@ -1,4 +1,4 @@
-# Codename Ralphie
+# Codename Sammy
 
 ## Overview
 
@@ -32,7 +32,7 @@ Run the script with your project task as a CLI argument or a Markdown file path.
 
 Basic command:
 ```bash
-node ralphie.js "Your project task here"
+node index.js "Your project task here"
 ```
 
 ### Options
@@ -42,7 +42,7 @@ node ralphie.js "Your project task here"
 
 Example with options:
 ```bash
-node ralphie.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 "Build a simple Node.js server."
+node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 "Build a simple Node.js server."
 ```
 
 ### Input Formats
