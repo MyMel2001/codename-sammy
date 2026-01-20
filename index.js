@@ -67,12 +67,44 @@ async function main() {
   let errorLog = '';
   let progressLog = '';
 
+  // Instead of one big progressLog string
+  let projectStateSummary = "Project initialized. No progress yet.";
+
+  // In the loop, after successful execution:
+  const summarizePrompt = `
+  Current detailed history (last ${Math.round((Number(contextLength) / 6) / 2)} characters):
+  ${progressLog.slice(Math.round((Number(contextLength) / 6) / 2) * -1)} 
+
+  Current error logs (last ${Math.round((Number(contextLength) / 6) / 2)} characters):
+  ${errorLog.slice((Math.round((Number(contextLength) / 6) / 2) * -1))}
+
+  Current Project State Summary:
+  ${projectStateSummary}
+
+  Update and shorten the Project State Summary to be concise, factual, and under ${Math.round(Number(contextLength) / 6)} tokens.
+  Focus on: current achievements, important files created, current status, any remaining major goals.
+
+  Reminder: Output ONLY the new summary, nothing else.
+  `;
+
+  const projectStateSummarySystem = "You are a project progress summarization bot. You creat summaries for projects. Use plain text. Output ONLY the new summary, NOTHNG ELSE."
+
+  const summaryResponse = await ollamaInstance.chat({
+      model: model,
+      messages: [
+        { role: 'system', content: projectStateSummarySystem },
+        { role: 'user', content: summarizePrompt }
+      ],
+      options: { num_ctx: contextLength }
+    });
+  projectStateSummary = summaryResponse.message.content.trim();
+
   const systemPromptGenerate = 'You are a code generator. Output only the raw next Node.js code segment without any codeblocks, markdown, formatting, or wrappers. For shell commands or other languages (like Python), use Node.js child_process to execute them directly without creating files or running code in shell. If the project is complete, output only "PROJECT_DONE". Do not include any other text, explanations, thoughts, speech, codeblocks, or markdown.';
   const systemPromptCheck = 'You are a completion checker. Respond only with "yes" or "no" to whether the project is complete. No other text, explanations, thoughts, speech, codeblocks, or markdown.';
 
   while (true) {
     // Clean slate: only main prompt + progress + error log
-    const fullPrompt = `${mainPrompt}\n\nProgress Log: ${progressLog}\n\nError Log (if any): ${errorLog}\n\nGenerate the next code segment or command. If incomplete, continue. If done, say "PROJECT_DONE".`;
+    const fullPrompt = `${mainPrompt}\n\nProgress Summary: ${projectStateSummary}\n\nGenerate the next code segment or command. If incomplete, continue. If done, say "PROJECT_DONE".`;
 
     // Use Ollama to generate the next segment
     const response = await ollamaInstance.chat({
