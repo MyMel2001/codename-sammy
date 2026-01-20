@@ -66,14 +66,14 @@ For non-Node.js tasks (e.g., Python), the generated code uses Node's ```child_pr
 
 ### Example 1: Simple Node.js Task
 ```bash
-node ralphie.js --model ministral-3:8b --host http://192.168.50.135:11434 "Write Node.js code to print 'Hello, World!'."
+node ralphie.js --model ministral-3:8b --host http://192.168.50.135:11434 "Echo out 'Hello, World!'."
 ```
 
 Expected: Generates and runs ```console.log('Hello, World!');```.
 
 ### Example 2: Cross-Language Task
 ```bash
-node ralphie.js --model ministral-3:8b --host http://192.168.50.135:11434 "Calculate the 10th Fibonacci number using Python via Node's child_process."
+node ralphie.js --model ministral-3:8b --host http://192.168.50.135:11434 "Calculate the 10th Fibonacci number using Python."
 ```
 
 Expected: Generates Node.js code like:
