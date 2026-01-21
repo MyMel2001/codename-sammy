@@ -50,6 +50,11 @@ Example with options and tools:
 node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 "Build a simple Node.js server." --mcp '@modelcontextprotocol/server-everything' --mcp '@modelcontextprotocol/server-filesystem'
 ```
 
+Example with options, tools, AND repl:
+```bash
+node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 --mcp '@modelcontextprotocol/server-everything' --mcp '@modelcontextprotocol/server-filesystem'
+```
+
 ### Input Formats
 - **Direct instructions**: Pass as string arguments.
 - **Markdown spec file**: Provide the file path; it will be read as the main task.
