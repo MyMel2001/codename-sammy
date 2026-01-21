@@ -11,7 +11,7 @@ Key features:
 - Strict output formatting from the LLM to avoid extraneous text.
 - A REPL
 
-## The Basic Logic Flowchart (What we started with)
+## The Basic Logic Flowchart (Where it all started)
 
 ![A flowchart of our loop](https://github.com/MyMel2001/project-ralphie/raw/refs/heads/main/codename%20ralphie.svg)
 
