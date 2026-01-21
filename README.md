@@ -40,21 +40,6 @@ node index.js "Your project task here"
 - `--host <url>_`: Specify the Ollama host (default: http://localhost:11434).
 - `--context-length <number>_`: Set the context length for Ollama (default: 42000).
 
-Example with options:
-```bash
-node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 "Build a simple Node.js server."
-```
-
-Example with options and tools:
-```bash
-node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 "Build a simple Node.js server." --mcp '@modelcontextprotocol/server-everything' --mcp '@modelcontextprotocol/server-filesystem'
-```
-
-Example with options, tools, AND repl:
-```bash
-node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 --mcp '@modelcontextprotocol/server-everything' --mcp '@modelcontextprotocol/server-filesystem'
-```
-
 ### Input Formats
 - **Direct instructions**: Pass as string arguments.
 - **Markdown spec file**: Provide the file path; it will be read as the main task.
@@ -74,16 +59,21 @@ For non-Node.js tasks (e.g., Python), the generated code uses Node's ```child_pr
 
 ## Examples
 
-### Example 1: Simple Node.js Task
+### Example with options
+
 ```bash
-node index.js --model ministral-3:8b --host http://192.168.50.135:11434 "Echo out 'Hello, World\!'."
+node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 "Echo out 'Hello, World\!'."
 ```
 
-Expected: Generates and runs ```console.log('Hello, World!');```.
+### Example with options and tools
 
-### Example 2: Cross-Language Task
 ```bash
-node index.js --model ministral-3:8b --host http://192.168.50.135:11434 "Calculate the 10th Fibonacci number using Python."
+node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 "Calculate the 10th Fibonacci number using Python." --mcp '@modelcontextprotocol/server-everything' --mcp '@modelcontextprotocol/server-filesystem'
+```
+
+### Example with options, tools, AND repl
+```bash
+node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 --mcp '@modelcontextprotocol/server-everything' --mcp '@modelcontextprotocol/server-filesystem'
 ```
 
 ### Troubleshooting
