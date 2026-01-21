@@ -47,7 +47,7 @@ node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --contex
 
 Example with options and tools:
 ```bash
-node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 "Build a simple Node.js server." --mcp '@modelcontextprotocol/server-everything' --mcp '@modelcontextprotocol/server-filesystem' --mcp '-y @playwright/mcp@latest --headless --output-dir'
+node index.js --model ministral-3:8b --host http://192.168.50.135:11434 --context-length 50000 "Build a simple Node.js server." --mcp '@modelcontextprotocol/server-everything' --mcp '@modelcontextprotocol/server-filesystem'
 ```
 
 ### Input Formats
