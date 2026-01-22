@@ -29,7 +29,8 @@ const nativeToolDefinitions = [
         type: 'object',
         properties: {
           path: { type: 'string' },
-          text: { type: 'string', description: 'Content to write' }
+          text: { type: 'string', description: 'Content to write' },
+          append: { type: 'boolean', description: 'If true, append instead of overwrite', default: false }
         },
         required: ['path', 'text']
       }
@@ -73,7 +74,7 @@ const handleNativeTool = (name, args) => {
   try {
     if (name === 'read_file') return fs.readFileSync(fullPath, 'utf-8');
 
-    if (name === 'search_and_replace' || name === 'find_and_replace') {
+    if (name === 'search_and_replace') {
       let data = fs.readFileSync(fullPath, 'utf-8');
       if (!data.includes(args.search)) return `Error: String "${args.search}" not found.`;
       let newData = data.split(args.search).join(args.replace);
@@ -82,8 +83,13 @@ const handleNativeTool = (name, args) => {
     }
 
     if (name === 'write_file') {
-      fs.writeFileSync(fullPath, args.text || args.data || args.newData, 'utf-8');
-      return `Successfully wrote to ${args.path}`;
+      if (args.append) {
+        fs.appendFileSync(fullPath, args.text, 'utf-8');
+        return `Successfully appended to ${args.path}`;
+      } else {
+        fs.writeFileSync(fullPath, args.text, 'utf-8');
+        return `Successfully wrote to ${args.path}`;
+      }
     }
 
     if (name === 'run_terminal_command') {
@@ -102,7 +108,7 @@ const handleNativeTool = (name, args) => {
 
 function parseOptions() {
   let args = process.argv.slice(2);
-  let model = 'ministral-3:8b';
+  let model = 'llama3'; // Changed default model to a stable, widely available one
   let host = 'http://localhost:11434';
   let contextLength = 42000;
   let mcpServers = [];
@@ -156,6 +162,16 @@ async function shutdownMCP(clients) {
 async function main() {
   const { args, model, host, contextLength, mcpServers } = parseOptions();
   const ollama = new Ollama({ host });
+  
+  // Pull the model to ensure it's available
+  try {
+    await ollama.pull({ model });
+    console.log(`Model ${model} pulled successfully.`);
+  } catch (err) {
+    console.error(`Failed to pull model ${model}: ${err.message}`);
+    process.exit(1);
+  }
+
   const { tools, clients } = await setupMCP(mcpServers);
 
   let initialInput =
@@ -170,7 +186,7 @@ async function main() {
   let projectStateSummary = "No active task.";
 
   const systemPromptRouter = 'You are a router. Determine if the user request is a "CHAT" (a question, greeting, or explanation request, etc) or an "ACTION" (such as requires writing code, running commands, or multi-step execution). Respond ONLY with the word "CHAT" or "ACTION".';
-  const systemPromptAgent = 'You are an action executor. Accomplish the user\'s task by using the available tools. Do not generate or execute code directly; instead, use the provided tools for any file system modifications, command executions, or other actions. For shell commands, use the run_terminal_command tool. For creating or modifying files, use write_file or search_and_replace. You can reason step by step in your response before calling tools. Reason about what to do next, then call tools if needed. If you think the step is complete, output your final thoughts without any special markers. You have basic tool calling access - so don\'t be afraid to use some tool calls!';
+  const systemPromptAgent = 'You are an action executor. Accomplish the user\'s task by using the available tools. Do not generate or execute code directly; instead, use the provided tools for any file system modifications, command executions, or other actions. For shell commands, use the run_terminal_command tool. For creating or modifying files, use write_file or search_and_replace. You can reason step by step in your response before calling tools. Reason about what to do next, then call tools if needed. If no more actions needed, output "DONE" (optionally followed by ": message"). Do not call tools after outputting DONE.';
   const systemPromptCheck = 'You are a completion checker. Respond only with "yes" or "no" to whether the project is complete. No other text, explanations, thoughts, speech, codeblocks, or markdown. You have basic tool calling access, btw - so don\'t be afraid to use some tool calls in case you need to test something! Just remember - to test something: launch it for 60 seconds, close it, check error logs.';
   const projectStateSummarySystem = "You are a project progress summarization bot. You create summaries for projects - showing what you've learned, the errors, and what needs to be done. Use plain text. Output ONLY the new summary, NOTHNG ELSE.";
 
@@ -183,78 +199,94 @@ async function main() {
       if (!currentTask.trim()) continue;
     }
 
-    const routeResponse = await ollama.chat({
-      model,
-      messages: [
-        { role: 'system', content: systemPromptRouter },
-        { role: 'user', content: currentTask }
-      ]
-    });
-
-    const isAction = routeResponse.message.content.includes("ACTION");
-
-    if (!isAction) {
-      const chatResponse = await ollama.chat({
+    try {
+      const routeResponse = await ollama.chat({
         model,
         messages: [
-          { role: 'system', content: "You are a helpful assistant named Sammy." },
+          { role: 'system', content: systemPromptRouter },
           { role: 'user', content: currentTask }
         ]
       });
 
-      console.log(`\n${chatResponse.message.content}`);
-      if (!isReplMode) break;
-      continue;
-    }
+      const isAction = routeResponse.message.content.includes("ACTION");
 
-    let errorLog = '';
+      if (!isAction) {
+        const chatResponse = await ollama.chat({
+          model,
+          messages: [
+            { role: 'system', content: "You are a helpful assistant named Sammy." },
+            { role: 'user', content: currentTask }
+          ]
+        });
 
-    progressLog = '';
-    projectStateSummary = "No active task.";
+        console.log(`\n${chatResponse.message.content}`);
+        if (!isReplMode) break;
+        continue;
+      }
 
-    while (true) {
-      const sliceLen = Math.round((Number(contextLength) / 6) / 2);
-      const summarizePrompt =
-        `History: ${progressLog.slice(-sliceLen)}\nErrors: ${errorLog.slice(-sliceLen)}\nSummary: ${projectStateSummary}\nUpdate summary.`;
-
-      const summaryResponse = await ollama.chat({
-        model,
-        messages: [
-          { role: 'system', content: projectStateSummarySystem },
-          { role: 'user', content: summarizePrompt }
-        ],
-        options: { num_ctx: contextLength }
-      });
-
-      projectStateSummary = summaryResponse.message.content.trim();
-
-      const fullPrompt =
-        `Task: ${currentTask}\nSummary: ${projectStateSummary}\n${errorLog ? `FIX ERROR: ${errorLog}` : "Continue with next actions."}`;
-
-      let messages = [
-        { role: 'system', content: systemPromptAgent },
-        { role: 'user', content: fullPrompt }
-      ];
-
-      let iterationLog = '';
-      let toolErrors = [];
-      let finalContent = '';
+      let errorLog = '';
 
       while (true) {
-        const response = await ollama.chat({ model, messages, tools, options: { num_ctx: contextLength } });
-        const message = response.message;
+        const sliceLen = Math.round((Number(contextLength) / 6) / 2);
+        const summarizePrompt =
+          `History: ${progressLog.slice(-sliceLen)}\nErrors: ${errorLog.slice(-sliceLen)}\nSummary: ${projectStateSummary}\nUpdate summary.`;
 
-        iterationLog += `\nAssistant: ${message.content || ''}`;
+        const summaryResponse = await ollama.chat({
+          model,
+          messages: [
+            { role: 'system', content: projectStateSummarySystem },
+            { role: 'user', content: summarizePrompt }
+          ],
+          options: { num_ctx: contextLength }
+        });
 
-        if (message.tool_calls?.length > 0) {
+        projectStateSummary = summaryResponse.message.content.trim();
+
+        const fullPrompt =
+          `Task: ${currentTask}\nSummary: ${projectStateSummary}\n${errorLog ? `FIX ERROR: ${errorLog}` : "Continue with next actions."}`;
+
+        let messages = [
+          { role: 'system', content: systemPromptAgent },
+          { role: 'user', content: fullPrompt }
+        ];
+
+        let done = false;
+
+        while (true) {
+          const response = await ollama.chat({
+            model,
+            messages,
+            tools,
+            options: { num_ctx: contextLength }
+          });
+
+          const message = response.message;
+
+          if (message.content) {
+            console.log(`\n${message.content}`);
+            if (message.content.toUpperCase().includes('DONE')) {
+              done = true;
+              const parts = message.content.split(/DONE:?/i);
+              if (parts.length > 1 && parts[1].trim()) {
+                console.log(`\nFinal output: ${parts[1].trim()}`);
+              }
+              break;
+            }
+          }
+
+          if (!message.tool_calls || message.tool_calls.length === 0) {
+            messages.push({ role: 'assistant', content: message.content || '' });
+            continue;
+          }
+
           messages.push(message);
 
-          iterationLog += `\nTool calls: ${JSON.stringify(message.tool_calls)}`;
-
           for (const call of message.tool_calls) {
-            let toolResult;
             const name = call.function.name;
             const args = call.function.arguments;
+            let toolResult = 'Tool error';
+
+            console.log(`\nExecuting tool: ${name} with arguments: ${JSON.stringify(args)}`);
 
             if (NATIVE_TOOL_NAMES.includes(name)) {
               toolResult = handleNativeTool(name, args);
@@ -266,98 +298,40 @@ async function main() {
                   arguments: args
                 });
                 toolResult = res.content.map(c => c.text || JSON.stringify(c)).join('\n');
-              } else {
-                toolResult = 'Tool not found';
               }
             }
 
-            if (toolResult.startsWith('Error') || toolResult === 'Tool error' || toolResult === 'Tool not found') {
-              toolErrors.push(toolResult);
-            }
-
-            iterationLog += `\nTool result for ${name}: ${toolResult}`;
+            console.log(`Tool result: ${toolResult}`);
 
             messages.push({
               role: 'tool',
-              content: toolResult || "Tool error",
+              content: toolResult,
               name
             });
           }
-
-          continue;
         }
 
-        finalContent = message.content.trim();
-        break;
+        if (done) break;
+
+        // Check completion
+        const checkResponse = await ollama.chat({
+          model,
+          messages: [
+            { role: 'system', content: systemPromptCheck },
+            { role: 'user', content: `Task: ${currentTask}\nLog: ${progressLog}\nDone?` }
+          ]
+        });
+
+        if (checkResponse.message.content.toLowerCase().includes('yes')) break;
       }
 
-      console.log(`\n--- Action Step ---\n${iterationLog}`);
-
-      if (toolErrors.length > 0) {
-        errorLog = toolErrors.join('\n');
-        console.log(`❌ Error: ${errorLog}`);
-      } else {
-        console.log(`✅ Success: ${iterationLog}`);
-        progressLog += `\nStep: ${iterationLog}`;
-        errorLog = '';
-      }
-
-      if (toolErrors.length === 0) {
-        let checkMessages = [
-          { role: 'system', content: systemPromptCheck },
-          { role: 'user', content: `Task: ${currentTask}\nLog: ${progressLog}\nDone?` }
-        ];
-
-        while (true) {
-          const checkResponse = await ollama.chat({ model, messages: checkMessages, tools, options: { num_ctx: contextLength } });
-          const checkMessage = checkResponse.message;
-
-          if (checkMessage.tool_calls?.length > 0) {
-            checkMessages.push(checkMessage);
-
-            for (const call of checkMessage.tool_calls) {
-              let toolResult;
-              const name = call.function.name;
-              const args = call.function.arguments;
-
-              if (NATIVE_TOOL_NAMES.includes(name)) {
-                toolResult = handleNativeTool(name, args);
-              } else {
-                const target = clients.find(c => c.toolNames.includes(name));
-                if (target) {
-                  const res = await target.client.callTool({
-                    name,
-                    arguments: args
-                  });
-                  toolResult = res.content.map(c => c.text || JSON.stringify(c)).join('\n');
-                } else {
-                  toolResult = 'Tool not found';
-                }
-              }
-
-              checkMessages.push({
-                role: 'tool',
-                content: toolResult || "Tool error",
-                name
-              });
-            }
-
-            continue;
-          }
-
-          if (checkMessage.content.toLowerCase().includes('yes')) {
-            console.log('\nProject complete.');
-            break;
-          } else {
-            break;
-          }
-        }
-
-        if (checkMessage.content.toLowerCase().includes('yes')) break;
+      if (!isReplMode) break;
+    } catch (err) {
+      console.error(`Error in processing: ${err.message}`);
+      if (err.message.includes('unexpected end of JSON input')) {
+        console.log('This error often occurs if the Ollama server is not running or the model is not available. Ensure Ollama is installed and running with "ollama serve", and try pulling the model with "ollama pull ' + model + '". Also, check if your Ollama version is up to date.');
       }
     }
-
-    if (!isReplMode) break;
   }
 
   rl.close();
