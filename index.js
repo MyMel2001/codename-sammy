@@ -152,7 +152,6 @@ async function setupMCP(serverPaths) {
   return { tools, clients };
 }
 
-// FIX: explicit MCP shutdown so Node can exit cleanly
 async function shutdownMCP(clients) {
   for (const { client } of clients) {
     try {
@@ -162,7 +161,7 @@ async function shutdownMCP(clients) {
 }
 
 async function main() {
-  let goods = 0
+  let goods = 0;
   const { args, model, host, contextLength, mcpServers } = parseOptions();
   const ollama = new Ollama({ host });
   const { tools, clients } = await setupMCP(mcpServers);
@@ -182,6 +181,7 @@ async function main() {
   const systemPromptGenerate = 'You are an action executor. Accomplish the user\'s task by using the available tools. Do not generate or execute code directly; instead, use the provided tools for any file system modifications, command executions, or other actions. For shell commands, use the run_terminal_command tool. For creating or modifying files, use write_file or search_and_replace. You can reason step by step in your response before calling tools. Reason about what to do next, then call tools if needed. If no more actions needed, output "PROJECT_DONE" (optionally followed by ": message"). Do not call tools after outputting "PROJECT_DONE".';
   const systemPromptCheck = 'You are a completion checker. Respond only with "yes" or "no" to whether the project is complete. No other text, explanations, thoughts, speech, codeblocks, or markdown. You have basic tool calling access, btw - so don\'t be afraid to use some tool calls in case you need to test something! Just remember - to test something: launch it for 60 seconds, close it, check error logs.';
   const projectStateSummarySystem = "You are a project progress summarization bot. You create summaries for projects - showing what you've learned, the errors, and what needs to be done. Use plain text. Output ONLY the new summary, NOTHNG ELSE.";
+
   while (true) {
     let currentTask = initialInput;
 
@@ -211,7 +211,7 @@ async function main() {
       });
 
       console.log(`\n${chatResponse.message.content}`);
-      if (!isReplMode) { break; }
+      if (!isReplMode) break;
       continue;
     }
 
@@ -241,19 +241,20 @@ async function main() {
         { role: 'user', content: fullPrompt }
       ];
 
+      let toolResult = "";
+      let previousToolName = "";
+      let segment = "";
+
       while (true) {
         const response = await ollama.chat({ model, messages, tools, options: { num_ctx: contextLength } });
         const message = response.message;
-        let toolResult;
-        let previousToolName;
 
         if (message.tool_calls?.length > 0) {
           messages.push(message);
 
           for (const call of message.tool_calls) {
-
             if (NATIVE_TOOL_NAMES.includes(call.function.name)) {
-              previousToolName = call.function.name
+              previousToolName = call.function.name;
               console.log(`\n--- Executing Action ---\n${call.function.name}`);
               toolResult = handleNativeTool(call.function.name, call.function.arguments);
             } else {
@@ -273,97 +274,85 @@ async function main() {
               name: call.function.name
             });
           }
-
           continue;
         }
 
-        segment = message.content.trim();
+        segment = message.content ? message.content.trim() : "";
         break;
       }
 
       if (segment.includes('PROJECT_DONE')) break;
 
-      console.log(`Tool result: ${toolResult}`);
+      if (toolResult) console.log(`Tool result: ${toolResult}`);
 
-      const isExecutionTool = previousToolName.includes('execute') || previousToolName.includes('run');
-      const hasNoError = !previousToolName.includes('Error');
+      const isExecutionTool = previousToolName && (previousToolName.includes('execute') || previousToolName.includes('run'));
+      const hasNoError = toolResult && !toolResult.includes('Error');
 
-      // 1. Check for errors first
-      if (toolResult.includes('Error')) {
+      if (toolResult && toolResult.includes('Error')) {
         errorLog = toolResult;
         console.log(`❌ Error: ${errorLog}`);
-      } 
-      // 2. Check if the WHOLE TASK is done (High Goods)
-      else if (goods > 38) {
+      } else if (goods > 38) {
         console.log(`🎯 Task Complete: High goods threshold met.`);
-        await shutdownMCP(clients);
-        process.exit(0);
-      } 
-      // 3. Handle a successful tool execution without exiting the whole script
-      else if (isExecutionTool && hasNoError) {
+        break;
+      } else if (isExecutionTool && hasNoError) {
           console.log(`🎯 Task Complete: Tested OK.`);
-          await shutdownMCP(clients);
-          process.exit(0); 
-      } 
-      // 4. Default state
-      else {
+          break;
+      } else {
         console.log(`✅ Good so far...`);
         goods++;
       }
 
-        while (true) {
-          const checkResponse = await ollama.chat({
+      let projectIsDone = false;
+      const checkMessages = [
+        { role: 'system', content: systemPromptCheck },
+        { role: 'user', content: `Task: ${currentTask}\nLog: ${progressLog}\nDone?` }
+      ];
+
+      while (true) {
+        const checkResponse = await ollama.chat({
           model,
-          messages: [
-            { role: 'system', content: systemPromptCheck },
-            { role: 'user', content: `Task: ${currentTask}\nLog: ${progressLog}\nDone?` }
-          ]
-          });
-          const checkMessage = checkResponse.message;
+          messages: checkMessages,
+          tools,
+          options: { num_ctx: contextLength }
+        });
+        
+        const checkMessage = checkResponse.message;
 
-          if (checkMessage.tool_calls?.length > 0) {
-            checkMessages.push(checkMessage);
-
-            for (const call of checkMessage.tool_calls) {
-              let toolResult;
-
-              if (NATIVE_TOOL_NAMES.includes(call.function.name)) {
-                toolResult = handleNativeTool(call.function.name, call.function.arguments);
-              } else {
-                const target = clients.find(c => c.toolNames.includes(call.function.name));
-                if (target) {
-                  const res = await target.client.callTool({
-                    name: call.function.name,
-                    arguments: call.function.arguments
-                  });
-                  toolResult = res.content.map(c => c.text || JSON.stringify(c)).join('\n');
-                }
+        if (checkMessage.tool_calls?.length > 0) {
+          checkMessages.push(checkMessage);
+          for (const call of checkMessage.tool_calls) {
+            let tResult;
+            if (NATIVE_TOOL_NAMES.includes(call.function.name)) {
+              tResult = handleNativeTool(call.function.name, call.function.arguments);
+            } else {
+              const target = clients.find(c => c.toolNames.includes(call.function.name));
+              if (target) {
+                const res = await target.client.callTool({
+                  name: call.function.name,
+                  arguments: call.function.arguments
+                });
+                tResult = res.content.map(c => c.text || JSON.stringify(c)).join('\n');
               }
-
-              checkMessages.push({
-                role: 'tool',
-                content: toolResult || "Tool error",
-                name: call.function.name
-              });
             }
-
-            continue;
+            checkMessages.push({ role: 'tool', content: tResult || "Tool error", name: call.function.name });
           }
-
-          if (checkMessage.content.toLowerCase().includes('yes')) break;
-          break;
+          continue;
         }
 
-        if (checkResponse.message.content.toLowerCase().includes('yes')) break;
+        if (checkMessage.content && checkMessage.content.toLowerCase().includes('yes')) {
+          projectIsDone = true;
+        }
+        break;
       }
+
+      if (projectIsDone) break;
     }
 
     if (!isReplMode) break;
   }
 
   rl.close();
-  await shutdownMCP(clients); // FIX: clean shutdown
-  process.exit(0)
+  await shutdownMCP(clients);
   console.log('Session closed.');
 }
 
