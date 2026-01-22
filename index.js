@@ -285,10 +285,14 @@ async function main() {
 
       console.log(`Tool result: ${toolResult}`);
 
+      const isExecutionTool = previousToolName.includes('execute') || previousToolName.includes('run');
+      const hasNoError = !previousToolName.includes('Error');
+      const highGoods = goods > 38;
+
       if (toolResult.includes('Error')) {
         errorLog = toolResult;
         console.log(`❌ Error: ${errorLog}`);
-      } else if (((previousToolName.includes('execute') || previousToolName.includes('run')) && !previousToolName.includes('Error')) || goods > 38) {
+      } else if ((isExecutionTool && hasNoError) || highGoods) {
         console.log(`✅ Success: ${toolResult}`);
         progressLog += `\nCode: ${segment}\nOutput: ${toolResult}`;
         errorLog = '';
