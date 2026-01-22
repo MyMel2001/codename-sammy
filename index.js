@@ -211,7 +211,7 @@ async function main() {
       });
 
       console.log(`\n${chatResponse.message.content}`);
-      if (!isReplMode) break;
+      if (!isReplMode) { break; }
       continue;
     }
 
