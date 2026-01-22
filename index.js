@@ -29,7 +29,8 @@ const nativeToolDefinitions = [
         type: 'object',
         properties: {
           path: { type: 'string' },
-          text: { type: 'string', description: 'Content to write' }
+          text: { type: 'string', description: 'Content to write' },
+          append: { type: 'boolean', description: 'If true, append instead of overwrite', default: false }
         },
         required: ['path', 'text']
       }
@@ -68,13 +69,12 @@ const nativeToolDefinitions = [
 const NATIVE_TOOL_NAMES = nativeToolDefinitions.map(t => t.function.name);
 
 const handleNativeTool = (name, args) => {
-  // FIX: resolve paths relative to the directory the command was run in
   let fullPath = args.path ? path.resolve(process.cwd(), args.path) : "";
 
   try {
     if (name === 'read_file') return fs.readFileSync(fullPath, 'utf-8');
 
-    if (name === 'search_and_replace' || name === 'find_and_replace') {
+    if (name === 'search_and_replace') {
       let data = fs.readFileSync(fullPath, 'utf-8');
       if (!data.includes(args.search)) return `Error: String "${args.search}" not found.`;
       let newData = data.split(args.search).join(args.replace);
@@ -83,8 +83,13 @@ const handleNativeTool = (name, args) => {
     }
 
     if (name === 'write_file') {
-      fs.writeFileSync(fullPath, args.text || args.data || args.newData, 'utf-8');
-      return `Successfully wrote to ${args.path}`;
+      if (args.append) {
+        fs.appendFileSync(fullPath, args.text, 'utf-8');
+        return `Successfully appended to ${args.path}`;
+      } else {
+        fs.writeFileSync(fullPath, args.text, 'utf-8');
+        return `Successfully wrote to ${args.path}`;
+      }
     }
 
     if (name === 'run_terminal_command') {
@@ -92,7 +97,7 @@ const handleNativeTool = (name, args) => {
         shell: true,
         encoding: 'utf-8',
         timeout: 30000,
-        cwd: process.cwd() // FIX: respect current working directory
+        cwd: process.cwd()
       });
       return result.stdout || result.stderr || 'Command executed (no output).';
     }
@@ -100,6 +105,7 @@ const handleNativeTool = (name, args) => {
     return `Error executing ${name}: ${e.message}`;
   }
 };
+
 
 function parseOptions() {
   let args = process.argv.slice(2);
@@ -276,15 +282,13 @@ async function main() {
 
       console.log(`Tool result: ${toolResult}`);
 
-      if (execResult.error) {
-        errorLog = execResult.log;
+      if (toolResult.includes('Error')) {
+        errorLog = toolResult;
         console.log(`❌ Error: ${errorLog}`);
       } else {
-        console.log(`✅ Success: ${execResult.log}`);
-        progressLog += `\nCode: ${segment}\nOutput: ${execResult.log}`;
+        console.log(`✅ Success: ${toolResult}`);
+        progressLog += `\nCode: ${segment}\nOutput: ${toolResult}`;
         errorLog = '';
-        await shutdownMCP(clients);
-        process.exit()
 
         const checkResponse = await ollama.chat({
           model,
