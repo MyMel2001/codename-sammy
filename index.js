@@ -290,13 +290,14 @@ async function main() {
         progressLog += `\nCode: ${segment}\nOutput: ${toolResult}`;
         errorLog = '';
 
-        let checkMessages = [
-          { role: 'system', content: systemPromptCheck },
-          { role: 'user', content: `Task: ${currentTask}\nLog: ${progressLog}\nDone?` }
-        ];
-
         while (true) {
-          const checkResponse = await ollama.chat({ model, messages: checkMessages, tools, options: { num_ctx: contextLength } });
+          const checkResponse = await ollama.chat({
+          model,
+          messages: [
+            { role: 'system', content: systemPromptCheck },
+            { role: 'user', content: `Task: ${currentTask}\nLog: ${progressLog}\nDone?` }
+          ]
+          });
           const checkMessage = checkResponse.message;
 
           if (checkMessage.tool_calls?.length > 0) {
