@@ -306,6 +306,8 @@ async function main() {
         console.log(`✅ Success: ${execResult.log}`);
         progressLog += `\nCode: ${segment}\nOutput: ${execResult.log}`;
         errorLog = '';
+        await shutdownMCP(clients);
+        process.exit()
 
         const checkResponse = await ollama.chat({
           model,
