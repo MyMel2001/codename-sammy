@@ -196,7 +196,7 @@ async function main() {
     'You are a router. Determine if the user request is a "CHAT" or an "ACTION". Respond ONLY with the word "CHAT" or "ACTION".';
 
   const systemPromptGenerate =
-    'You are a code generator. Output only the raw next Node.js code segment. If the project is complete, output only "PROJECT_DONE".';
+    'You are a code generator. Output only the raw next Node.js code segment. If the user asks for something that involves a file or files, use *NodeJS code to create the file(s).*  If the project is complete, output only "PROJECT_DONE".';
 
   const systemPromptCheck =
     'You are a completion checker. Respond only with "yes" or "no".';
