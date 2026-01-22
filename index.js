@@ -246,7 +246,14 @@ async function main() {
       let segment = "";
 
       while (true) {
-        const response = await ollama.chat({ model, messages, tools, options: { num_ctx: contextLength } });
+        const response = await ollama.chat({ model,
+          messages: [
+            { role: 'system', content: projectStateSummarySystem },
+            { role: 'user', content: summarizePrompt }
+          ],
+          tools,
+          options: { num_ctx: contextLength } 
+        });
         const message = response.message;
 
         if (message.tool_calls?.length > 0) {
