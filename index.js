@@ -240,7 +240,7 @@ async function main() {
         { role: 'user', content: fullPrompt }
       ];
 
-      while (true) {
+           while (true) {
         const response = await ollama.chat({ model, messages, tools, options: { num_ctx: contextLength } });
         const message = response.message;
 
