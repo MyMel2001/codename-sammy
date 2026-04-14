@@ -1,4 +1,4 @@
-# Codename Sammy
+# Codename Sammy [is deprecated, use this!](https://github.com/mymel2001/7coder)
 
 ## Overview
 
